@@ -2,11 +2,13 @@ package com.example.videoarch
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.media.session.PlaybackState
 import android.os.Bundle
 import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.widget.Button
+import android.widget.TextView
 import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -19,6 +21,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var playButton: Button
     private lateinit var pauseButton: Button
     private lateinit var stopButton: Button
+    private lateinit var stateText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,15 +50,44 @@ class MainActivity : AppCompatActivity() {
         playButton = findViewById(R.id.play)
         playButton.setOnClickListener {
             mediaController.transportControls.play()
+            mediaSession.setPlaybackState(
+                PlaybackStateCompat
+                    .Builder()
+                    .setState(
+                        PlaybackStateCompat.STATE_PLAYING,
+                        PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN,
+                        1.0F
+                    ).build()
+            )
         }
         pauseButton = findViewById(R.id.pause)
         pauseButton.setOnClickListener {
             mediaController.transportControls.pause()
+            mediaSession.setPlaybackState(
+                PlaybackStateCompat
+                    .Builder()
+                    .setState(
+                        PlaybackStateCompat.STATE_PAUSED,
+                        PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN,
+                        1.0F
+                    ).build()
+            )
         }
         stopButton = findViewById(R.id.stop)
         stopButton.setOnClickListener {
             mediaController.transportControls.stop()
+            mediaSession.setPlaybackState(
+                PlaybackStateCompat
+                    .Builder()
+                    .setState(
+                        PlaybackStateCompat.STATE_STOPPED,
+                        PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN,
+                        1.0F
+                    ).build()
+            )
         }
+
+        stateText = findViewById(R.id.state)
     }
 
     override fun onRequestPermissionsResult(
@@ -99,6 +131,16 @@ class MainActivity : AppCompatActivity() {
             }
 
             MediaControllerCompat(this, mediaSession).also { mediaControllerCompat ->
+                mediaControllerCompat.registerCallback(object : MediaControllerCompat.Callback() {
+                    override fun onPlaybackStateChanged(playbackState: PlaybackStateCompat?) {
+                        super.onPlaybackStateChanged(playbackState)
+                        if (playbackState?.state == PlaybackStateCompat.STATE_PLAYING) {
+                            stateText.text = "Reproduciendo"
+                        } else {
+                            stateText.text = "Pausado"
+                        }
+                    }
+                })
                 MediaControllerCompat.setMediaController(this, mediaControllerCompat)
             }
         }
