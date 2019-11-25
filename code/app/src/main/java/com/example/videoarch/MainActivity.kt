@@ -2,8 +2,8 @@ package com.example.videoarch
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.media.session.PlaybackState
 import android.os.Bundle
+import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
@@ -22,6 +22,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pauseButton: Button
     private lateinit var stopButton: Button
     private lateinit var stateText: TextView
+    private lateinit var titleText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,6 +51,13 @@ class MainActivity : AppCompatActivity() {
         playButton = findViewById(R.id.play)
         playButton.setOnClickListener {
             mediaController.transportControls.play()
+            mediaSession.setMetadata(
+                MediaMetadataCompat
+                    .Builder()
+                    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Smash mouth")
+                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "All star")
+                    .build()
+            )
             mediaSession.setPlaybackState(
                 PlaybackStateCompat
                     .Builder()
@@ -88,6 +96,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         stateText = findViewById(R.id.state)
+        titleText = findViewById(R.id.title)
     }
 
     override fun onRequestPermissionsResult(
@@ -139,6 +148,11 @@ class MainActivity : AppCompatActivity() {
                         } else {
                             stateText.text = "Pausado"
                         }
+                    }
+
+                    override fun onMetadataChanged(metadata: MediaMetadataCompat?) {
+                        super.onMetadataChanged(metadata)
+                        titleText.text = metadata?.getString(MediaMetadataCompat.METADATA_KEY_TITLE)
                     }
                 })
                 MediaControllerCompat.setMediaController(this, mediaControllerCompat)
