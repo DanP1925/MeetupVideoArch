@@ -1,8 +1,14 @@
 package com.example.videoarch
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
@@ -10,6 +16,7 @@ import android.support.v4.media.session.PlaybackStateCompat
 import android.widget.Button
 import android.widget.TextView
 import android.widget.VideoView
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -17,12 +24,14 @@ import androidx.core.content.ContextCompat
 class MainActivity : AppCompatActivity() {
 
     private lateinit var mediaSession: MediaSessionCompat
+    private lateinit var audioManager: AudioManager
     private lateinit var videoView: VideoView
     private lateinit var playButton: Button
     private lateinit var pauseButton: Button
     private lateinit var stopButton: Button
     private lateinit var stateText: TextView
     private lateinit var titleText: TextView
+    private lateinit var audioFocusChangeListener: AudioManager.OnAudioFocusChangeListener
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,8 +57,11 @@ class MainActivity : AppCompatActivity() {
             setupVideoView()
         }
 
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
         playButton = findViewById(R.id.play)
         playButton.setOnClickListener {
+            val result = requestAudioFocus()
             mediaController.transportControls.play()
             mediaSession.setMetadata(
                 MediaMetadataCompat
@@ -98,6 +110,43 @@ class MainActivity : AppCompatActivity() {
         stateText = findViewById(R.id.state)
         titleText = findViewById(R.id.title)
     }
+
+    private fun requestAudioFocus(): Int {
+        audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+            when (focusChange) {
+                AudioManager.AUDIOFOCUS_LOSS -> {
+                    mediaController.transportControls.stop()
+                }
+            }
+        }
+
+        return if (Build.VERSION.SDK_INT >= 26) {
+            requestAudioFocusFromOreo()
+        } else {
+            requestAudioFocusUntilOreo()
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun requestAudioFocusFromOreo() = audioManager.requestAudioFocus(
+        AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).run {
+            setAudioAttributes(AudioAttributes.Builder().run {
+                setUsage(AudioAttributes.USAGE_MEDIA)
+                setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                build()
+            })
+            setAcceptsDelayedFocusGain(true)
+            setOnAudioFocusChangeListener(audioFocusChangeListener, Handler())
+            build()
+        }
+    )
+
+
+    private fun requestAudioFocusUntilOreo() = audioManager.requestAudioFocus(
+        audioFocusChangeListener,
+        AudioManager.STREAM_MUSIC,
+        AudioManager.AUDIOFOCUS_GAIN
+    )
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -162,20 +211,44 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        if (android.os.Build.VERSION.SDK_INT <= 23) {
+        if (Build.VERSION.SDK_INT <= 23) {
             this.mediaController.transportControls.stop()
+            if (Build.VERSION.SDK_INT >= 26) {
+                abandonAudioFocusFromOreo()
+            } else {
+                abandonAudioFocusUntilOreo()
+            }
         }
     }
 
     override fun onStop() {
         super.onStop()
-        if (android.os.Build.VERSION.SDK_INT > 23) {
+        if (Build.VERSION.SDK_INT > 23) {
             this.mediaController.transportControls.stop()
+            if (Build.VERSION.SDK_INT >= 26) {
+                abandonAudioFocusFromOreo()
+            } else {
+                abandonAudioFocusUntilOreo()
+            }
         }
+
     }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun abandonAudioFocusFromOreo() = audioManager.abandonAudioFocusRequest(
+        AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_LOSS).run {
+            setOnAudioFocusChangeListener(audioFocusChangeListener, Handler())
+            build()
+        }
+    )
+
+
+    private fun abandonAudioFocusUntilOreo() =
+        audioManager.abandonAudioFocus(audioFocusChangeListener)
 
     companion object {
         const val MY_PERMISSIONS_REQUEST_READ_STORAGE = 25
     }
+
 
 }
