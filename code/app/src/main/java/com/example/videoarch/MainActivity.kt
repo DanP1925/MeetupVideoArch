@@ -87,7 +87,7 @@ class MainActivity : AppCompatActivity() {
                     )
                 setPlaybackState(stateBuilder.build())
 
-                setCallback(MySessionCallbacks(it))
+                setCallback(MySessionCallbacks(it, MEDIA_SOURCE))
             }
 
             MediaControllerCompat(this, mediaSession).also {
@@ -113,7 +113,10 @@ class MainActivity : AppCompatActivity() {
                 mediaSession.setMetadata(
                     MediaMetadataCompat
                         .Builder()
-                        .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Electric Light Orchestra")
+                        .putString(
+                            MediaMetadataCompat.METADATA_KEY_ARTIST,
+                            "Electric Light Orchestra"
+                        )
                         .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Mr. Blue Sky")
                         .build()
                 )
