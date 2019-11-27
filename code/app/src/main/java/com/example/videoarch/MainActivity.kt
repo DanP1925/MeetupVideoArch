@@ -14,7 +14,6 @@ import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.widget.Button
-import android.widget.TextView
 import android.widget.VideoView
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
@@ -30,6 +29,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pauseButton: Button
     private lateinit var stopButton: Button
     private lateinit var audioFocusChangeListener: AudioManager.OnAudioFocusChangeListener
+    private var hasFocus = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,28 +71,62 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupVideoView() {
+        videoView = findViewById(R.id.video)
+        videoView.setVideoPath(MEDIA_SOURCE)
+        videoView.setOnPreparedListener {
+            mediaSession = MediaSessionCompat(this, "Session_Tag").apply {
+
+                setMediaButtonReceiver(null)
+
+                val stateBuilder = PlaybackStateCompat.Builder()
+                    .setActions(
+                        PlaybackStateCompat.ACTION_PLAY or
+                                PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                                PlaybackStateCompat.ACTION_STOP
+                    )
+                setPlaybackState(stateBuilder.build())
+
+                setCallback(MySessionCallbacks(it))
+            }
+
+            MediaControllerCompat(this, mediaSession).also {
+                it.registerCallback(
+                    MyControllerCallback(
+                        findViewById(R.id.state), findViewById(R.id.title)
+                    )
+                )
+                MediaControllerCompat.setMediaController(this, it)
+            }
+        }
+    }
 
     private fun setupPlayButton() {
         playButton = findViewById(R.id.play)
         playButton.setOnClickListener {
-            val result = requestAudioFocus()
-            mediaController.transportControls.play()
-            mediaSession.setMetadata(
-                MediaMetadataCompat
-                    .Builder()
-                    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Smash mouth")
-                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "All star")
-                    .build()
-            )
-            mediaSession.setPlaybackState(
-                PlaybackStateCompat
-                    .Builder()
-                    .setState(
-                        PlaybackStateCompat.STATE_PLAYING,
-                        PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN,
-                        1.0F
-                    ).build()
-            )
+            var result = -1
+            if (!hasFocus) {
+                result = requestAudioFocus()
+            }
+            if (hasFocus || result == AudioManager.AUDIOFOCUS_GAIN) {
+                mediaController.transportControls.play()
+                mediaSession.setMetadata(
+                    MediaMetadataCompat
+                        .Builder()
+                        .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Smash mouth")
+                        .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "All star")
+                        .build()
+                )
+                mediaSession.setPlaybackState(
+                    PlaybackStateCompat
+                        .Builder()
+                        .setState(
+                            PlaybackStateCompat.STATE_PLAYING,
+                            PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN,
+                            1.0F
+                        ).build()
+                )
+            }
         }
     }
 
@@ -115,6 +149,9 @@ class MainActivity : AppCompatActivity() {
     private fun setupStopButton() {
         stopButton = findViewById(R.id.stop)
         stopButton.setOnClickListener {
+            if (hasFocus) {
+                abandonAudioFocus()
+            }
             mediaController.transportControls.stop()
             mediaSession.setPlaybackState(
                 PlaybackStateCompat
@@ -130,11 +167,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestAudioFocus(): Int {
         audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
-            when (focusChange) {
-                AudioManager.AUDIOFOCUS_LOSS -> {
-                    mediaController.transportControls.stop()
-                }
-            }
         }
 
         return if (Build.VERSION.SDK_INT >= 26) {
@@ -165,35 +197,6 @@ class MainActivity : AppCompatActivity() {
         AudioManager.AUDIOFOCUS_GAIN
     )
 
-    private fun setupVideoView() {
-        videoView = findViewById(R.id.video)
-        videoView.setVideoPath(MEDIA_SOURCE)
-        videoView.setOnPreparedListener {
-            mediaSession = MediaSessionCompat(this, "Session_Tag").apply {
-
-                setMediaButtonReceiver(null)
-
-                val stateBuilder = PlaybackStateCompat.Builder()
-                    .setActions(
-                        PlaybackStateCompat.ACTION_PLAY or
-                                PlaybackStateCompat.ACTION_PLAY_PAUSE or
-                                PlaybackStateCompat.ACTION_STOP
-                    )
-                setPlaybackState(stateBuilder.build())
-
-                setCallback(MySessionCallbacks(it))
-            }
-
-            MediaControllerCompat(this, mediaSession).also {
-                it.registerCallback(
-                    MyControllerCallback(
-                        findViewById(R.id.state), findViewById(R.id.title)
-                    )
-                )
-                MediaControllerCompat.setMediaController(this, it)
-            }
-        }
-    }
 
     override fun onPause() {
         super.onPause()
