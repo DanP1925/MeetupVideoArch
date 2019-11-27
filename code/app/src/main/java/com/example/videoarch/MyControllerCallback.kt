@@ -10,10 +10,11 @@ class MyControllerCallback(var stateText: TextView, var titleText: TextView) :
 
     override fun onPlaybackStateChanged(playbackState: PlaybackStateCompat?) {
         super.onPlaybackStateChanged(playbackState)
-        if (playbackState?.state == PlaybackStateCompat.STATE_PLAYING) {
-            stateText.text = "Reproduciendo"
-        } else {
-            stateText.text = "Pausado"
+        stateText.text = when (playbackState?.state) {
+            PlaybackStateCompat.STATE_PLAYING -> "Reproduciendo"
+            PlaybackStateCompat.STATE_PAUSED -> "Pausado"
+            PlaybackStateCompat.STATE_STOPPED -> "Detenido"
+            else -> "Error"
         }
     }
 

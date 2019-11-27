@@ -113,8 +113,8 @@ class MainActivity : AppCompatActivity() {
                 mediaSession.setMetadata(
                     MediaMetadataCompat
                         .Builder()
-                        .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Smash mouth")
-                        .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "All star")
+                        .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Electric Light Orchestra")
+                        .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Mr. Blue Sky")
                         .build()
                 )
                 mediaSession.setPlaybackState(
@@ -238,7 +238,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val MY_PERMISSIONS_REQUEST_READ_STORAGE = 25
         const val MEDIA_SOURCE =
-            "/storage/emulated/0/Movies/Smash_Mouth_-_All_Star_Official_Music_Video.mp4"
+            "/storage/emulated/0/Movies/Guardianes_de_La_Galaxia_Vol2__Baby_Groot_Bailando.mp4"
     }
 
 
