@@ -29,36 +29,50 @@ class MainActivity : AppCompatActivity() {
     private lateinit var playButton: Button
     private lateinit var pauseButton: Button
     private lateinit var stopButton: Button
-    private lateinit var stateText: TextView
-    private lateinit var titleText: TextView
     private lateinit var audioFocusChangeListener: AudioManager.OnAudioFocusChangeListener
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        //Pedir permiso
-        if (ContextCompat.checkSelfPermission(
-                this, Manifest.permission.READ_EXTERNAL_STORAGE
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            if (!ActivityCompat.shouldShowRequestPermissionRationale(
-                    this,
-                    Manifest.permission.READ_CONTACTS
-                )
-            ) {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
-                    MY_PERMISSIONS_REQUEST_READ_STORAGE
-                )
-            }
+        if (!hasPermissionGranted()) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
+                MY_PERMISSIONS_REQUEST_READ_STORAGE
+            )
         } else {
             setupVideoView()
         }
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
+        setupPlayButton()
+        setupPauseButton()
+        setupStopButton()
+
+    }
+
+    private fun hasPermissionGranted() = ContextCompat.checkSelfPermission(
+        this, Manifest.permission.READ_EXTERNAL_STORAGE
+    ) == PackageManager.PERMISSION_GRANTED
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>, grantResults: IntArray
+    ) {
+        when (requestCode) {
+            MY_PERMISSIONS_REQUEST_READ_STORAGE -> {
+                if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                    setupVideoView()
+                }
+                return
+            }
+        }
+    }
+
+
+    private fun setupPlayButton() {
         playButton = findViewById(R.id.play)
         playButton.setOnClickListener {
             val result = requestAudioFocus()
@@ -80,6 +94,9 @@ class MainActivity : AppCompatActivity() {
                     ).build()
             )
         }
+    }
+
+    private fun setupPauseButton() {
         pauseButton = findViewById(R.id.pause)
         pauseButton.setOnClickListener {
             mediaController.transportControls.pause()
@@ -93,6 +110,9 @@ class MainActivity : AppCompatActivity() {
                     ).build()
             )
         }
+    }
+
+    private fun setupStopButton() {
         stopButton = findViewById(R.id.stop)
         stopButton.setOnClickListener {
             mediaController.transportControls.stop()
@@ -106,9 +126,6 @@ class MainActivity : AppCompatActivity() {
                     ).build()
             )
         }
-
-        stateText = findViewById(R.id.state)
-        titleText = findViewById(R.id.title)
     }
 
     private fun requestAudioFocus(): Int {
@@ -148,34 +165,14 @@ class MainActivity : AppCompatActivity() {
         AudioManager.AUDIOFOCUS_GAIN
     )
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>, grantResults: IntArray
-    ) {
-        when (requestCode) {
-            MY_PERMISSIONS_REQUEST_READ_STORAGE -> {
-                if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
-                    setupVideoView()
-                }
-                return
-            }
-        }
-    }
-
-
     private fun setupVideoView() {
         videoView = findViewById(R.id.video)
-        videoView.setVideoPath("/storage/emulated/0/Movies/Smash_Mouth_-_All_Star_Official_Music_Video.mp4")
+        videoView.setVideoPath(MEDIA_SOURCE)
         videoView.setOnPreparedListener {
             mediaSession = MediaSessionCompat(this, "Session_Tag").apply {
 
-                //Por defecto se maneja tanto los media buttons como los transport controls
-                //Tambien por defecto los convierte en transport control
-
-                //Por ser video se le indica que en background no va a recibir ningun media button
                 setMediaButtonReceiver(null)
 
-                // Se le indica al controller que media buttons van a ser validos
                 val stateBuilder = PlaybackStateCompat.Builder()
                     .setActions(
                         PlaybackStateCompat.ACTION_PLAY or
@@ -184,27 +181,16 @@ class MainActivity : AppCompatActivity() {
                     )
                 setPlaybackState(stateBuilder.build())
 
-                // Se le asigna los callbacks para manejar el media session
                 setCallback(MySessionCallbacks(it))
             }
 
-            MediaControllerCompat(this, mediaSession).also { mediaControllerCompat ->
-                mediaControllerCompat.registerCallback(object : MediaControllerCompat.Callback() {
-                    override fun onPlaybackStateChanged(playbackState: PlaybackStateCompat?) {
-                        super.onPlaybackStateChanged(playbackState)
-                        if (playbackState?.state == PlaybackStateCompat.STATE_PLAYING) {
-                            stateText.text = "Reproduciendo"
-                        } else {
-                            stateText.text = "Pausado"
-                        }
-                    }
-
-                    override fun onMetadataChanged(metadata: MediaMetadataCompat?) {
-                        super.onMetadataChanged(metadata)
-                        titleText.text = metadata?.getString(MediaMetadataCompat.METADATA_KEY_TITLE)
-                    }
-                })
-                MediaControllerCompat.setMediaController(this, mediaControllerCompat)
+            MediaControllerCompat(this, mediaSession).also {
+                it.registerCallback(
+                    MyControllerCallback(
+                        findViewById(R.id.state), findViewById(R.id.title)
+                    )
+                )
+                MediaControllerCompat.setMediaController(this, it)
             }
         }
     }
@@ -213,11 +199,7 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         if (Build.VERSION.SDK_INT <= 23) {
             this.mediaController.transportControls.stop()
-            if (Build.VERSION.SDK_INT >= 26) {
-                abandonAudioFocusFromOreo()
-            } else {
-                abandonAudioFocusUntilOreo()
-            }
+            abandonAudioFocus()
         }
     }
 
@@ -225,13 +207,17 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
         if (Build.VERSION.SDK_INT > 23) {
             this.mediaController.transportControls.stop()
-            if (Build.VERSION.SDK_INT >= 26) {
-                abandonAudioFocusFromOreo()
-            } else {
-                abandonAudioFocusUntilOreo()
-            }
+            abandonAudioFocus()
         }
 
+    }
+
+    private fun abandonAudioFocus() {
+        if (Build.VERSION.SDK_INT >= 26) {
+            abandonAudioFocusFromOreo()
+        } else {
+            abandonAudioFocusUntilOreo()
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -248,6 +234,8 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val MY_PERMISSIONS_REQUEST_READ_STORAGE = 25
+        const val MEDIA_SOURCE =
+            "/storage/emulated/0/Movies/Smash_Mouth_-_All_Star_Official_Music_Video.mp4"
     }
 
 
